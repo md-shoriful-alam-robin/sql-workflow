@@ -1,0 +1,136 @@
+-- SELECT * FROM users WHERE date_of_birth<'1995-09-09';
+-- SELECT * FROM users WHERE date_of_birth IS NOt NUll;
+-- SELECT * FROM users WHERE date_of_birth BETWEEN'1995-09-09' AND '1999-09-09';
+-- SELECT * FROM users WHERE gender IN ('Male', 'Female');
+-- SELECT * FROM users WHERE gender='Female'AND salary>'70000';
+-- SELECT * FROM users WHERE gender='Male'AND salary>'70000';
+-- SELECT * FROM users WHERE gender='Male'AND salary<'70000';
+-- SELECT * FROM users WHERE gender='Male'or salary>'65000';
+-- SELECT * FROM users WHERE gender='Male' OR salary>'65000' ORDER BY date_of_birth ASC;
+-- SELECT * FROM users WHERE gender='Male'OR salary>'65000' ORDER BY date_of_birth DESC;
+-- SELECT * FROM users WHERE gender='Male'OR salary>'65000' ORDER BY date_of_birth DESC LIMIT 5;
+
+-- UPDATE users SET salary = 45000 WHERE id=1;
+-- UPDATE users SET salary = 45000, email='aarav@aarav.com' WHERE id=1;
+-- UPDATE users SET salary = 70000 WHERE id=5;
+-- UPDATE users SET name='Aisha Khan' WHERE email= 'aisha@example.com';
+-- UPDATE users SET salary=salary+10000 WHERE salary<60000;
+
+-- DELETE FROM users WHERE salary<65000;
+-- DELETE FROM users WHERE id=3;
+
+
+-- ALTER TABLE users ADD CONSTRAINT unique_email UNIQUE (email);
+
+
+
+-- ALTER TABLE users ADD CONSTRAINT chk_dob CHECK (date_of_birth > '1920-01-01');
+
+
+-- SELECT Count(*) FROM users;
+  -- SELECT Count(*) FROM users WHERE gender = 'Male';
+-- SELECT Count(*) FROM users WHERE gender = 'Female';
+-- SELECT MIN(salary) AS min_salary, MAX(salary) AS max_salary From users;
+-- SELECT SUM(salary) AS total_Robin FROM users;
+-- SELECT AVG(salary) AS avg_salary FROM users;
+-- SELECT AVG(salary) AS avg_salary FROM users GROUP BY gender;
+
+
+-- SELECT id, gender, name, LENGTH(name) As name_len FROM users;
+-- SELECT id, gender, name, Lower(name) As lower FROM users;
+-- SELECT id, gender, name, Lower(name) As lower,CONCAT(LOWER(name), "5677") as username, NOW()as time, length(name) AS name_len FROM users;
+-- SELECT id, gender, name, Lower(name) As lower,CONCAT(LOWER(name), "5677") as username, YEAR(date_of_birth)as yob, length(name) AS name_len FROM users;
+-- SELECT id, gender, name, Lower(name) As lower,CONCAT(LOWER(name), "5677") as username, day(date_of_birth)as day, length(name) AS name_len FROM users;
+-- SELECT id, gender, name, Lower(name) As lower,CONCAT(LOWER(name), "5677") as username, MONTH(date_of_birth)as mnth, length(name) AS name_len FROM users;
+-- SELECT name, DATEDIFF(CURDATE(), date_of_birth) AS days FROM users;
+SELECT * FROM users
+-- SELECT * FROM users WHERE date_of_birth<'1995-09-09';
+-- SELECT * FROM users WHERE date_of_birth IS NOt NUll;
+-- SELECT * FROM users WHERE date_of_birth BETWEEN'1995-09-09' AND '1999-09-09';
+-- SELECT * FROM users WHERE gender IN ('Male', 'Female');
+-- SELECT * FROM users WHERE gender='Female'AND salary>'70000';
+-- SELECT * FROM users WHERE gender='Male'AND salary>'70000';
+-- SELECT * FROM users WHERE gender='Male'AND salary<'70000';
+-- SELECT * FROM users WHERE gender='Male'or salary>'65000';
+-- SELECT * FROM users WHERE gender='Male' OR salary>'65000' ORDER BY date_of_birth ASC;
+-- SELECT * FROM users WHERE gender='Male'OR salary>'65000' ORDER BY date_of_birth DESC;
+-- SELECT * FROM users WHERE gender='Male'OR salary>'65000' ORDER BY date_of_birth DESC LIMIT 5;
+
+-- UPDATE users SET salary = 45000 WHERE id=1;
+-- UPDATE users SET salary = 45000, email='aarav@aarav.com' WHERE id=1;
+-- UPDATE users SET salary = 70000 WHERE id=5;
+-- UPDATE users SET name='Aisha Khan' WHERE email= 'aisha@example.com';
+-- UPDATE users SET salary=salary+10000 WHERE salary<60000;
+
+-- DELETE FROM users WHERE salary<65000;
+-- DELETE FROM users WHERE id=3;
+
+
+-- ALTER TABLE users ADD CONSTRAINT unique_email UNIQUE (email);
+
+
+
+-- ALTER TABLE users ADD CONSTRAINT chk_dob CHECK (date_of_birth > '1920-01-01');
+
+
+-- SELECT Count(*) FROM users;
+  -- SELECT Count(*) FROM users WHERE gender = 'Male';
+-- SELECT Count(*) FROM users WHERE gender = 'Female';
+-- SELECT MIN(salary) AS min_salary, MAX(salary) AS max_salary From users;
+-- SELECT SUM(salary) AS total_Robin FROM users;
+-- SELECT AVG(salary) AS avg_salary FROM users;
+-- SELECT AVG(salary) AS avg_salary FROM users GROUP BY gender;
+
+
+-- SELECT id, gender, name, LENGTH(name) As name_len FROM users;
+-- SELECT id, gender, name, Lower(name) As lower FROM users;
+-- SELECT id, gender, name, Lower(name) As lower,CONCAT(LOWER(name), "5677") as username, NOW()as time, length(name) AS name_len FROM users;
+-- SELECT id, gender, name, Lower(name) As lower,CONCAT(LOWER(name), "5677") as username, YEAR(date_of_birth)as yob, length(name) AS name_len FROM users;
+-- SELECT id, gender, name, Lower(name) As lower,CONCAT(LOWER(name), "5677") as username, day(date_of_birth)as day, length(name) AS name_len FROM users;
+-- SELECT id, gender, name, Lower(name) As lower,CONCAT(LOWER(name), "5677") as username, MONTH(date_of_birth)as mnth, length(name) AS name_len FROM users;
+-- SELECT name, DATEDIFF(CURDATE(), date_of_birth) AS days FROM users;
+-- USE startersql;
+-- SELECT * FROM users;
+-- SELECT * FROM addresses;
+
+-- DELETE FROM addresses WHERE id=2;
+-- DELETE FROM addresses WHERE id=22; --TUSHAR DELETE
+
+-- JOIN
+
+-- SELECT users.name, users.gender, addresses.city, addresses.state
+-- FROM users
+-- INNER JOIN addresses ON users.id = addresses.user_id;
+
+-- SELECT users.name, users.gender, addresses.city, addresses.state
+--  FROM users
+-- LEFT JOIN addresses ON users.id = addresses.user_id;
+
+-- SELECT users.name, users.gender, addresses.city, addresses.state
+--  FROM users
+-- RIGHT JOIN addresses ON users.id = addresses.user_id;
+
+
+-- UNION
+
+-- USE startersql;
+
+-- DROP TABLE IF EXISTS admin_users;
+
+-- CREATE TABLE admin_users (
+--     id INT PRIMARY KEY,
+--     name VARCHAR(100),
+--     email VARCHAR(100),
+--     gender ENUM('Male', 'Female', 'Other'),
+--     date_of_birth DATE,
+--     salary INT
+-- );
+
+-- INSERT INTO admin_users (id, name, email, gender, date_of_birth, salary) VALUES
+-- (101, 'Anil Kumar', 'anil@example.com', 'Male', '1985-04-12', 60000),
+-- (102, 'Pooja Sharma', 'pooja@example.com', 'Female', '1992-09-20', 58000),
+-- (103, 'Rakesh Yadav', 'rakesh@example.com', 'Male', '1989-11-05', 54000),
+-- (104, 'Fatima Begum', 'fatima@example.com', 'Female', '1990-06-30', 62000);
+
+
+SELECT * FROM admin_users;
