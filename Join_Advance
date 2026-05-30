@@ -1,0 +1,71 @@
+-- SELECT *
+-- FROM employee_demographics;
+
+-- SELECT *
+-- FROM employee_salary;
+
+-- 👉 ব্যবহার করো যখন: দুই টেবিলেই মিলে যাওয়া ডেটা দরকার।
+-- শুধু যে রেকর্ডগুলো দুই টেবিলে আছে সেগুলোই দেখাবে।
+-- SELECT *
+-- FROM employee_demographics AS dem
+-- INNER JOIN employee_salary AS sal
+-- ON dem.employee_id = sal.employee_id;
+
+
+-- SELECT dem.employee_id, age, occupation
+-- FROM employee_demographics AS dem
+-- INNER JOIN employee_salary AS sal
+-- ON dem.employee_id = sal.employee_id;
+
+-- 👉 ব্যবহার করো যখন: বাম টেবিলের সব ডেটা দরকার, ডান টেবিলে না থাকলে NULL দেখাবে।
+-- SELECT *
+-- FROM employee_demographics AS dem
+-- LEFT JOIN employee_salary AS sal
+-- ON dem.employee_id = sal.employee_id;
+
+-- 👉 ব্যবহার করো যখন: ডান টেবিলের সব ডেটা দরকার, বাম টেবিলে না থাকলে NULL দেখাবে।
+-- SELECT *
+-- FROM employee_demographics AS dem
+-- RIGHT JOIN employee_salary AS sal
+-- ON dem.employee_id = sal.employee_id;
+
+-- 👉 ব্যবহার করো যখন: একই টেবিলের ডেটা নিজের সাথে তুলনা করতে হয়।
+-- যেমন: Secret Santa — কে কাকে গিফট দেবে বের করতে।
+-- SELECT *
+-- FROM employee_salary emp1
+-- JOIN employee_salary emp2
+--     ON emp1.employee_id = emp2.employee_id;
+
+-- SELECT *
+-- FROM employee_salary emp1
+-- JOIN employee_salary emp2
+--     ON emp1.employee_id + 1 = emp2.employee_id;
+
+-- 👉 ব্যবহার করো যখন: ৩ বা তার বেশি টেবিল একসাথে যুক্ত করতে হয়।
+-- SELECT emp1.employee_id AS emp_santa,
+--   emp1.first_name AS first_name_santa,
+--   emp1.last_name AS last_name_santa,
+--   emp2.employee_id AS emp_name,
+--   emp2.first_name AS first_name_emp,
+--   emp2.last_name AS last_name_emp
+-- FROM employee_salary emp1
+-- JOIN employee_salary emp2
+--     ON emp1.employee_id + 1 = emp2.employee_id;
+
+-- SELECT *
+-- FROM employee_demographics AS dem
+-- RIGHT JOIN employee_salary AS sal
+-- ON dem.employee_id = sal.employee_id;
+
+
+-- SELECT *
+-- FROM employee_demographics AS dem
+-- INNER JOIN employee_salary AS sal
+--   ON dem.employee_id = sal.employee_id
+-- INNER JOIN parks_departments AS pd
+--   ON sal.dept_id = pd.department_id;
+-- SELECT *
+-- FROM parks_departments;
+
+-- 🧠 সহজ মনে রাখার উপায়
+-- JOINকী দেখাবেINNERদুই টেবিলে মিল আছে শুধু সেগুলোLEFTবাম টেবিলের সব + মিল থাকলে ডানেরটাRIGHTডান টেবিলের সব + মিল থাকলে বামেরটাSELFএকই টেবিল দুইবার ব্যবহারMULTIPLE৩+ টেবিল একসাথে
