@@ -1,0 +1,42 @@
+-- ------------------Window Function---------------- --__
+
+-- মনে রাখার নিয়ম
+
+-- PARTITION BY = গ্রুপ ভাগ করো (যেমন লিঙ্গ অনুযায়ী)
+-- ORDER BY = সেই গ্রুপের ভেতরে কীভাবে সাজাবে
+-- OVER() = এটা লেখা মানেই Window Function চলছে 
+
+-- কখন ব্যবহার করবো:
+--   যখন প্রতিটি কর্মীর সারি রেখে লিঙ্গ অনুযায়ী
+--   আলাদাভাবে বেতনের ক্রম জানতে চাই।
+
+-- ROW_NUMBER → সমান বেতনেও আলাদা নম্বর (১,২,৩,৪)
+-- RANK       → সমান হলে একই নম্বর, পরেরটা বাদ (১,২,২,৪)
+-- DENSE_RANK → সমান হলে একই নম্বর, পরেরটা বাদ নয় (১,২,২,৩)
+-- ======================================
+
+-- SELECT dem.first_name, dem.last_name,gender, AVG(sal.salary) AS avg_salary
+-- FROM employee_demographics AS dem
+-- JOIN employee_salary AS sal 
+-- ON dem.employee_id = sal.employee_id
+-- GROUP BY dem.first_name, dem.last_name,gender;
+
+-- SELECT dem.first_name, dem.last_name, gender, AVG(salary) OVER(PARTITION BY gender)
+-- FROM employee_demographics AS dem
+--   JOIN employee_salary AS sal 
+--   ON dem.employee_id = sal.employee_id;
+
+
+-- SELECT dem.first_name, dem.last_name, gender,salary, SUM(salary) OVER(PARTITION BY gender ORDER BY dem.employee_id)
+-- FROM employee_demographics AS dem
+--   JOIN employee_salary AS sal 
+--   ON dem.employee_id = sal.employee_id;
+
+
+-- SELECT dem.employee_id, dem.first_name, dem.last_name, dem.gender, sal.salary,
+--   ROW_NUMBER() OVER(PARTITION BY dem.gender ORDER BY sal.salary DESC) AS row_num,
+--   RANK() OVER(PARTITION BY dem.gender ORDER BY sal.salary DESC) AS rank_num,
+--   DENSE_RANK() OVER(PARTITION BY dem.gender ORDER BY sal.salary DESC) AS dense_num
+-- FROM employee_demographics AS dem
+-- JOIN employee_salary AS sal 
+-- ON dem.employee_id = sal.employee_id;
