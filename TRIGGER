@@ -1,0 +1,32 @@
+-- ============================================
+-- TRIGGER — স্বয়ংক্রিয় নিয়ম
+-- ============================================
+-- Trigger কি:
+--   কোনো নির্দিষ্ট ঘটনা (INSERT/UPDATE/DELETE) ঘটলে
+--   MySQL নিজে থেকে কিছু কাজ করে ফেলে।
+--
+-- এই Trigger কি করে:
+--   employee_salary তে নতুন কর্মী যোগ হলে
+--   → employee_demographics এও স্বয়ংক্রিয়ভাবে যোগ হয়।
+--
+-- গুরুত্বপূর্ণ কীওয়ার্ড:
+--   AFTER INSERT ON <টেবিল> → কখন ও কোথায় চলবে
+--   FOR EACH ROW            → প্রতিটি সারির জন্য আলাদা
+--   NEW.<কলাম>              → সদ্য INSERT হওয়া সারির মান
+--   OLD.<কলাম>              → আগের সারির মান (DELETE/UPDATE এ)
+--   DELIMITER $$            → Trigger লেখার সময় আবশ্যক
+-- ============================================
+
+DELIMITER $$
+CREATE TRIGGER employee_insert
+AFTER INSERT ON employee_salary
+FOR EACH ROW
+BEGIN
+    INSERT INTO employee_demographics (employee_id, first_name, last_name)
+    VALUES (NEW.employee_id, NEW.first_name, NEW.last_name);
+END $$
+DELIMITER ;
+
+-- পরীক্ষা: শুধু salary তে ঢোকালেই demographics এও যাবে
+INSERT INTO employee_salary (employee_id, first_name, last_name, occupation, salary, dept_id)
+VALUES(13, 'Jean_Ralphio', 'Sapaerstein', 'Entertainment 720 CEO', 100000, NULL);
