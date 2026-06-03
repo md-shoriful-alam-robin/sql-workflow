@@ -1,0 +1,210 @@
+ধাপ ১ Staging টেবিল তৈরি ও ডেটা কপি করা
+
+মূল টেবিলে সরাসরি কাজ না করে একটি কপি (staging) টেবিলে কাজ করা হয় — যাতে কোনো ভুল হলে আসল ডেটা নষ্ট না হয়।
+DROP TABLE IF EXISTS layoffs_staging;
+CREATE TABLE layoffs_staging LIKE layoffs;
+INSERT INTO layoffs_staging SELECT * FROM layoffs;
+SELECT * FROM layoffs_staging;
+
+LIKE layoffs
+
+layoffs টেবিলের একই কাঠামো (কলাম, ডেটা টাইপ) নিয়ে নতুন টেবিল তৈরি — কিন্তু ডেটা ছাড়া।
+
+INSERT INTO ... SELECT *
+
+আসল টেবিলের সব ডেটা staging-এ কপি করা হয়।
+
+নিয়ম: Data cleaning সবসময় staging টেবিলে করো — মূল ডেটা সুরক্ষিত থাকে।
+
+
+ধাপ ২ ROW_NUMBER() দিয়ে ডুপ্লিকেট চিহ্নিত করা
+
+CTE ব্যবহার করে প্রতিটি সারিকে row_num নম্বর দেওয়া হয়। একই তথ্য বারবার থাকলে দ্বিতীয়টার row_num হয় ২ বা তার বেশি — সেগুলোই ডুপ্লিকেট।
+WITH duplicate_cte AS (
+    SELECT *,
+           ROW_NUMBER() OVER(
+               PARTITION BY company, location, industry,
+                            total_laid_off, percentage_laid_off,
+                            `date`, country, funds_raised_millions
+               ORDER BY company
+           ) AS row_num
+    FROM layoffs_staging
+)
+SELECT * FROM duplicate_cte
+WHERE row_num > 1;
+
+PARTITION BY — যে কলামগুলোর মান সব একসাথে মিললে তাকে ডুপ্লিকেট ধরা হয়। row_num = 1 মানে প্রথম কপি (রাখব), row_num > 1 মানে বাড়তি কপি (মুছব)।
+
+
+
+ধাপ ৩ — সতর্কতার ধাপ JOIN পদ্ধতিতে ডুপ্লিকেট মুছা
+
+CTE থেকে সরাসরি DELETE করা যায় না MySQL-এ। তাই JOIN পদ্ধতি ব্যবহার করা হয় — এটি সবচেয়ে নিরাপদ উপায়।
+DELETE s
+FROM layoffs_staging s
+JOIN (
+    SELECT company, location, industry, total_laid_off,
+           percentage_laid_off, `date`, country, funds_raised_millions,
+           ROW_NUMBER() OVER(
+               PARTITION BY company, location, industry, total_laid_off,
+               percentage_laid_off, `date`, country, funds_raised_millions
+               ORDER BY company
+           ) AS row_num
+    FROM layoffs_staging
+) t
+ON s.company = t.company
+AND s.location = t.location
+...
+WHERE t.row_num > 1;
+
+s = মূল staging টেবিল, t = ROW_NUMBER সহ subquery। JOIN করে শুধু row_num > 1 সারিগুলো DELETE করা হচ্ছে।
+
+
+
+
+ধাপ ৪ — বিকল্প পদ্ধতি layoffs_staging2 দিয়ে row_num কলাম রেখে কাজ করা
+
+দ্বিতীয় staging টেবিলে row_num কলাম যোগ করে তৈরি করা হয়। এরপর সেখানে ডেটা ঢুকিয়ে row_num > 1 মুছে ফেলা হয়। এটি একটু পরিষ্কার ও সহজ পদ্ধতি।
+নতুন টেবিল তৈরি (row_num কলামসহ)
+→
+ROW_NUMBER সহ ডেটা INSERT
+→
+row_num > 1 DELETE
+→
+যাচাই করা
+CREATE TABLE layoffs_staging2 (
+  company TEXT, location TEXT, industry TEXT,
+  total_laid_off INT DEFAULT NULL,
+  percentage_laid_off TEXT, date TEXT, stage TEXT,
+  country TEXT, funds_raised_millions INT DEFAULT NULL,
+  row_num INT
+);
+INSERT INTO layoffs_staging2
+SELECT *, ROW_NUMBER() OVER(
+    PARTITION BY company, location, industry, total_laid_off,
+    percentage_laid_off, `date`, country, funds_raised_millions
+    ORDER BY company
+) AS row_num
+FROM layoffs_staging;
+
+DELETE FROM layoffs_staging2 WHERE row_num > 1;
+
+SELECT * FROM layoffs_staging2 WHERE row_num > 1;
+SELECT * FROM layoffs_staging2;
+
+শেষ দুটি SELECT — প্রথমটি দিয়ে নিশ্চিত হওয়া যায় ডুপ্লিকেট মুছেছে কিনা (কোনো রো আসা উচিত নয়), দ্বিতীয়টি পরিষ্কার ডেটা দেখায়।
+
+
+মনে রাখার নিয়ম
+
+Staging টেবিল — মূল ডেটা নিরাপদ রাখতে সবসময় কপিতে কাজ করো
+ROW_NUMBER() + PARTITION BY — ডুপ্লিকেট খোঁজার সবচেয়ে নির্ভরযোগ্য পদ্ধতি
+JOIN পদ্ধতি — MySQL-এ CTE থেকে DELETE করতে না পারলে এটি ব্যবহার করো
+staging2 পদ্ধতি — row_num কলাম আলাদা রাখলে DELETE করা আরও সহজ
+শেষে SELECT যাচাই — মোছার পরে অবশ্যই চেক করো কোনো ডুপ্লিকেট বাকি নেই 
+
+-- ============================================
+-- DATA CLEANING: ডুপ্লিকেট সরানো
+-- ============================================
+-- লক্ষ্য: world_layoffs ডেটাসেট থেকে নকল সারি বাদ দেওয়া
+--
+-- কৌশল:
+--   (১) মূল টেবিল স্পর্শ না করে staging কপিতে কাজ
+--   (২) ROW_NUMBER() + PARTITION BY দিয়ে ডুপ্লিকেট চিহ্নিত
+--   (৩) row_num > 1 মানেই বাড়তি কপি → মুছে ফেলো
+--
+-- দুটি পদ্ধতি:
+--   JOIN পদ্ধতি   → staging থেকে সরাসরি DELETE (নিরাপদ)
+--   staging2 পদ্ধতি → row_num কলামসহ নতুন টেবিল → DELETE সহজ
+--
+-- গুরুত্বপূর্ণ:
+--   MySQL-এ CTE থেকে সরাসরি DELETE করা যায় না
+--   তাই JOIN বা staging2 পদ্ধতি ব্যবহার করতে হয়
+-- ============================================
+
+
+USE world_layoffs;
+
+-- 1. Create staging table
+DROP TABLE IF EXISTS layoffs_staging;
+CREATE TABLE layoffs_staging LIKE layoffs;
+
+-- 2. Copy data into staging
+INSERT INTO layoffs_staging
+SELECT *
+FROM layoffs;
+
+-- 3. Check data
+SELECT * FROM layoffs_staging;
+
+-- 4. Identify duplicates with ROW_NUMBER()
+WITH duplicate_cte AS (
+    SELECT *,
+           ROW_NUMBER() OVER(
+               PARTITION BY company, location, industry, total_laid_off, percentage_laid_off, `date`,
+                            country, funds_raised_millions
+               ORDER BY company
+           ) AS row_num
+    FROM layoffs_staging
+)
+SELECT *
+FROM duplicate_cte
+WHERE row_num > 1;   -- শুধু ডুপ্লিকেট রো দেখাবে
+
+-- 5. Remove duplicates (JOIN method is safest)
+DELETE s
+FROM layoffs_staging s
+JOIN (
+    SELECT company, location, industry, total_laid_off, percentage_laid_off, `date`, country, funds_raised_millions,
+           ROW_NUMBER() OVER(
+               PARTITION BY company, location, industry, total_laid_off, percentage_laid_off, `date`, country, funds_raised_millions
+               ORDER BY company
+           ) AS row_num
+    FROM layoffs_staging
+) t
+ON s.company = t.company
+AND s.location = t.location
+AND s.industry = t.industry
+AND s.total_laid_off = t.total_laid_off
+AND s.percentage_laid_off = t.percentage_laid_off
+AND s.date = t.date
+AND s.country = t.country
+AND s.funds_raised_millions = t.funds_raised_millions
+WHERE t.row_num > 1;
+
+-- 6. (Optional) Create a second staging table with row_num column
+DROP TABLE IF EXISTS layoffs_staging2;
+CREATE TABLE layoffs_staging2 (
+  company TEXT,
+  location TEXT,
+  industry TEXT,
+  total_laid_off INT DEFAULT NULL,
+  percentage_laid_off TEXT,
+  date TEXT,
+  stage TEXT,
+  country TEXT,
+  funds_raised_millions INT DEFAULT NULL,
+  row_num INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 7. Insert data with row_num into staging2
+INSERT INTO layoffs_staging2
+SELECT *,
+       ROW_NUMBER() OVER(
+           PARTITION BY company, location, industry, total_laid_off, percentage_laid_off, `date`,
+                        country, funds_raised_millions
+           ORDER BY company
+       ) AS row_num
+FROM layoffs_staging;
+
+DELETE 
+FROM layoffs_staging2
+WHERE row_num > 1;
+
+-- 8. Verify results
+SELECT *
+FROM layoffs_staging2
+WHERE row_num > 1;
+
+SELECT *
+FROM layoffs_staging2;
