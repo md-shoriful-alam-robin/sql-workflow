@@ -1,0 +1,446 @@
+- DATA CLEANING-- 
+
+USE world_layoffs;
+
+-- 1. Create staging table
+DROP TABLE IF EXISTS layoffs_staging;
+CREATE TABLE layoffs_staging LIKE layoffs;
+
+-- 2. Copy data into staging
+INSERT INTO layoffs_staging
+SELECT *
+FROM layoffs;
+
+-- 3. Check data
+SELECT * FROM layoffs_staging;
+
+-- 4. Identify duplicates with ROW_NUMBER()
+WITH duplicate_cte AS (
+    SELECT *,
+           ROW_NUMBER() OVER(
+               PARTITION BY company, location, industry, total_laid_off, percentage_laid_off, `date`,
+                            country, funds_raised_millions
+               ORDER BY company
+           ) AS row_num
+    FROM layoffs_staging
+)
+SELECT *
+FROM duplicate_cte
+WHERE row_num > 1;   -- শুধু ডুপ্লিকেট রো দেখাবে
+
+-- 5. Remove duplicates (JOIN method is safest)
+DELETE s
+FROM layoffs_staging s
+JOIN (
+    SELECT company, location, industry, total_laid_off, percentage_laid_off, `date`, country, funds_raised_millions,
+           ROW_NUMBER() OVER(
+               PARTITION BY company, location, industry, total_laid_off, percentage_laid_off, `date`, country, funds_raised_millions
+               ORDER BY company
+           ) AS row_num
+    FROM layoffs_staging
+) t
+ON s.company = t.company
+AND s.location = t.location
+AND s.industry = t.industry
+AND s.total_laid_off = t.total_laid_off
+AND s.percentage_laid_off = t.percentage_laid_off
+AND s.date = t.date
+AND s.country = t.country
+AND s.funds_raised_millions = t.funds_raised_millions
+WHERE t.row_num > 1;
+
+-- 6. (Optional) Create a second staging table with row_num column
+DROP TABLE IF EXISTS layoffs_staging2;
+CREATE TABLE layoffs_staging2 (
+  company TEXT,
+  location TEXT,
+  industry TEXT,
+  total_laid_off INT DEFAULT NULL,
+  percentage_laid_off TEXT,
+  date TEXT,
+  stage TEXT,
+  country TEXT,
+  funds_raised_millions INT DEFAULT NULL,
+  row_num INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 7. Insert data with row_num into staging2
+INSERT INTO layoffs_staging2
+SELECT *,
+       ROW_NUMBER() OVER(
+           PARTITION BY company, location, industry, total_laid_off, percentage_laid_off, `date`,
+                        country, funds_raised_millions
+           ORDER BY company
+       ) AS row_num
+FROM layoffs_staging;
+
+DELETE 
+FROM layoffs_staging2
+WHERE row_num > 1;
+
+-- 8. Verify results
+SELECT *
+FROM layoffs_staging2
+WHERE row_num > 1;
+
+SELECT *
+FROM layoffs_staging2;
+
+
+-- Standardizing Data-- 
+
+SELECT company, TRIM(company)
+FROM layoffs_staging2;
+
+UPDATE layoffs_staging2
+SET company = TRIM(company);
+
+
+-- SELECT *
+-- FROM layoffs_staging2
+-- WHERE industry LIKE 'Crypto%';
+
+
+SELECT DISTINCT industry
+FROM layoffs_staging2;
+
+
+
+UPDATE layoffs_staging2
+SET industry = 'Crypto'
+WHERE industry LIKE 'crypto%';
+
+
+-- SELECT DISTINCT location
+-- FROM layoffs_staging2
+-- ORDER BY 1;
+
+-- SELECT *
+-- FROM layoffs_staging2
+-- WHERE country LIKE 'United States%'
+-- ORDER BY 1;
+
+
+SELECT DISTINCT country, TRIM(TRAILING '.' FROM country)
+FROM layoffs_staging2
+ORDER BY 1;
+
+UPDATE layoffs_staging2
+SET country = TRIM(TRAILING '.' FROM country)
+WHERE country LIKE 'United States%';
+
+ SELECT `date`,
+ STR_TO_DATE(`date`, '%m/%d/%Y')
+FROM layoffs_staging2;
+
+UPDATE layoffs_staging2
+SET `date` = STR_TO_DATE(`date`, '%m/%d/%Y');
+
+ALTER TABLE layoffs_staging2
+MODIFY COLUMN `date` DATE;
+
+
+-- SELECT *
+-- FROM layoffs_staging2
+-- WHERE total_laid_off IS NULL;
+
+SELECT *
+FROM layoffs_staging2
+WHERE total_laid_off IS NULL
+AND percentage_laid_off IS NULL;
+
+
+UPDATE layoffs_staging2
+SET industry = NULL
+WHERE industry = '';
+
+
+
+-- SELECT *
+-- FROM layoffs_staging2
+-- WHERE industry IS NULL
+-- OR industry = '';
+
+SELECT *
+FROM layoffs_staging2
+WHERE company = 'Airbnb';
+
+SELECT *
+FROM layoffs_staging2
+WHERE company LIKE 'Bally%';
+
+
+-- SELECT *
+-- FROM layoffs_staging2 t1
+-- JOIN layoffs_staging2 t2
+-- 	ON t1.company = t2.company
+--  WHERE (t1.industry IS NULL OR t1.industry = '')
+--  AND t2.industry IS NOT NULL
+
+
+SELECT t1.industry, t2.industry
+FROM layoffs_staging2 t1
+JOIN layoffs_staging2 t2
+	ON t1.company = t2.company
+ WHERE (t1.industry IS NULL OR t1.industry = '')
+ AND t2.industry IS NOT NULL;
+
+-- UPDATE layoffs_staging2 t1
+-- JOIN layoffs_staging2 t2
+-- ON t1.company = t2.company
+-- SET t1.company = t2.company
+-- WHERE (t1.company IS NULL OR t1.industry = '')
+-- AND t2.industry IS NOT NULL;
+
+UPDATE layoffs_staging2 t1
+JOIN layoffs_staging2 t2
+ON t1.company = t2.company
+SET t1.industry = t2.industry
+WHERE t1.industry IS NULL 
+AND t2.industry IS NOT NULL;
+
+
+ SELECT *
+FROM layoffs_staging2 t2
+WHERE total_laid_off IS NULL
+AND percentage_laid_off IS NULL;
+
+
+DELETE
+FROM layoffs_staging2 t2
+WHERE total_laid_off IS NULL
+AND percentage_laid_off IS NULL;
+
+SELECT *
+FROM layoffs_staging2;
+
+
+ALTER TABLE layoffs_staging2
+DROP COLUMN row_num;
+
+
+
+অংশ ১ — ডুপ্লিকেট সরানো
+
+ধাপ ১–৩ Staging টেবিল তৈরি ও ডেটা কপি
+
+মূল layoffs টেবিলে কখনো সরাসরি কাজ করা উচিত না। একটি কপি বানিয়ে সেখানে কাজ করো — ভুল হলে আসল ডেটা নষ্ট হবে না।
+USE world_layoffs;
+
+-- layoffs এর মতো একই কাঠামোর খালি টেবিল বানাও
+DROP TABLE IF EXISTS layoffs_staging;
+CREATE TABLE layoffs_staging LIKE layoffs;
+
+-- আসল ডেটা কপি করো staging-এ
+INSERT INTO layoffs_staging
+SELECT * FROM layoffs;
+
+-- দেখো ডেটা ঠিকমতো এসেছে কিনা
+SELECT * FROM layoffs_staging;
+
+
+ধাপ ৪ ROW_NUMBER দিয়ে ডুপ্লিকেট খোঁজা
+
+একই কোম্পানির একই তথ্য বারবার থাকলে সেটা ডুপ্লিকেট। ROW_NUMBER() প্রতিটি "একই দলের" সারিকে ১, ২, ৩ করে নম্বর দেয়। যেটার নম্বর ১-এর বেশি সেটাই বাড়তি কপি।
+WITH duplicate_cte AS (
+    SELECT *,
+           ROW_NUMBER() OVER(
+               -- যেসব কলাম মিললে "একই সারি" ধরা হবে
+               PARTITION BY company, location, industry,
+                            total_laid_off, percentage_laid_off,
+                            `date`, country, funds_raised_millions
+               ORDER BY company
+           ) AS row_num
+    FROM layoffs_staging
+)
+-- শুধু ডুপ্লিকেটগুলো দেখাও (row_num = 1 হলো আসল, >1 হলো বাড়তি)
+SELECT * FROM duplicate_cte
+WHERE row_num > 1;
+
+
+ধাপ ৫ JOIN পদ্ধতিতে ডুপ্লিকেট মুছা
+
+MySQL-এ CTE থেকে সরাসরি DELETE করা যায় না। তাই JOIN ব্যবহার করে বাড়তি সারি মুছতে হয়।
+DELETE s                       -- s = staging টেবিল থেকে মুছব
+FROM layoffs_staging s
+JOIN (
+    SELECT company, location, industry, total_laid_off,
+           percentage_laid_off, `date`, country, funds_raised_millions,
+           ROW_NUMBER() OVER(
+               PARTITION BY company, location, industry, total_laid_off,
+               percentage_laid_off, `date`, country, funds_raised_millions
+               ORDER BY company
+           ) AS row_num
+    FROM layoffs_staging
+) t                            -- t = row_num সহ subquery
+ON s.company = t.company
+AND s.location = t.location
+AND s.industry = t.industry
+AND s.total_laid_off = t.total_laid_off
+AND s.percentage_laid_off = t.percentage_laid_off
+AND s.date = t.date
+AND s.country = t.country
+AND s.funds_raised_millions = t.funds_raised_millions
+WHERE t.row_num > 1;           -- শুধু বাড়তি কপি মুছো
+
+
+ধাপ ৬–৮ Staging2 পদ্ধতি (সহজ বিকল্প)
+
+row_num কলামসহ নতুন একটি টেবিল বানিয়ে সেখানে ডেটা ঢোকাও। তারপর row_num > 1 সরাসরি DELETE করো — JOIN লাগে না।
+-- row_num কলামসহ নতুন টেবিল বানাও
+DROP TABLE IF EXISTS layoffs_staging2;
+CREATE TABLE layoffs_staging2 (
+  company TEXT, location TEXT, industry TEXT,
+  total_laid_off INT DEFAULT NULL,
+  percentage_laid_off TEXT, date TEXT, stage TEXT,
+  country TEXT, funds_raised_millions INT DEFAULT NULL,
+  row_num INT          -- এই কলামটি নতুন যোগ করা হয়েছে
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ROW_NUMBER সহ ডেটা ঢোকাও
+INSERT INTO layoffs_staging2
+SELECT *, ROW_NUMBER() OVER(
+    PARTITION BY company, location, industry, total_laid_off,
+    percentage_laid_off, `date`, country, funds_raised_millions
+    ORDER BY company
+) AS row_num
+FROM layoffs_staging;
+
+-- সরাসরি বাড়তি সারি মুছো
+DELETE FROM layoffs_staging2 WHERE row_num > 1;
+-- যাচাই করো — কোনো ফলাফল না আসলে ডুপ্লিকেট নেই
+SELECT * FROM layoffs_staging2 WHERE row_num > 1;
+SELECT * FROM layoffs_staging2;
+
+
+অংশ ২ — ডেটা পরিষ্কার করা (Standardizing)
+
+কাজ ১ company নামের আগে-পিছে ফাঁকা জায়গা সরানো
+
+TRIM() ফাংশন নামের শুরু বা শেষে থাকা অতিরিক্ত space সরিয়ে দেয়। যেমন ' Amazon ' হয়ে যাবে 'Amazon'।
+-- আগে দেখো পরিবর্তন কেমন হবে
+SELECT company, TRIM(company)
+FROM layoffs_staging2;
+
+-- তারপর আপডেট করো
+UPDATE layoffs_staging2
+SET company = TRIM(company);
+
+
+কাজ ২ Industry নামের বানান একরকম করা
+
+কিছু সারিতে 'Crypto' লেখা ছিল, কিছুতে 'crypto' বা 'Crypto Currency' — ছোট-বড় হাতের কারণে এগুলো আলাদা গণ্য হয়। সব একরকম করে দেওয়া হচ্ছে।
+-- আগে দেখো কতগুলো আলাদা industry আছে
+SELECT DISTINCT industry FROM layoffs_staging2;
+
+-- 'crypto' দিয়ে শুরু সব নাম → 'Crypto' করো
+UPDATE layoffs_staging2
+SET industry = 'Crypto'
+WHERE industry LIKE 'crypto%';  -- LIKE = যেকোনো বানান ধরবে
+
+
+কাজ ৩ Country নামের শেষের ডট সরানো
+
+কিছু সারিতে 'United States.' লেখা ছিল — শেষে ডট আছে। TRIM(TRAILING '.' FROM ...) দিয়ে শেষের ডট সরানো হচ্ছে।
+-- আগে দেখো কোনটায় ডট আছে
+SELECT DISTINCT country, TRIM(TRAILING '.' FROM country)
+FROM layoffs_staging2
+ORDER BY 1;
+
+-- ডট সরিয়ে আপডেট করো
+UPDATE layoffs_staging2
+SET country = TRIM(TRAILING '.' FROM country)
+WHERE country LIKE 'United States%';
+
+
+কাজ ৪ তারিখ কলাম TEXT থেকে DATE এ রূপান্তর
+
+ডেটাসেটে তারিখ '3/6/2023' ধরনের text হিসেবে ছিল। STR_TO_DATE() দিয়ে সেটাকে আসল DATE ফরম্যাটে বদলানো হচ্ছে — যাতে পরে তারিখ দিয়ে ফিল্টার বা হিসাব করা যায়।
+-- আগে দেখো রূপান্তর কেমন হবে
+SELECT `date`, STR_TO_DATE(`date`, '%m/%d/%Y')
+FROM layoffs_staging2;
+
+-- তারিখ আপডেট করো
+UPDATE layoffs_staging2
+SET `date` = STR_TO_DATE(`date`, '%m/%d/%Y');
+
+-- কলামের ডেটা টাইপ TEXT থেকে DATE-এ বদলাও
+ALTER TABLE layoffs_staging2
+MODIFY COLUMN `date` DATE;
+
+%m/%d/%Y
+
+ফরম্যাট মানে: মাস/দিন/৪ সংখ্যার বছর — যেমন 03/06/2023
+
+MODIFY COLUMN
+
+কলামের ডেটা টাইপ বদলানোর কমান্ড। এটি না করলে তারিখ TEXT-ই থাকবে।
+
+
+
+অংশ ৩ — NULL ও খালি মান ঠিক করা
+
+কাজ ৫ দুটো মূল কলামই NULL — সেই সারি দেখা
+
+total_laid_off এবং percentage_laid_off দুটোই NULL মানে ওই সারিতে কোনো কাজের তথ্য নেই — এগুলো পরে মুছে ফেলা হবে।
+SELECT * FROM layoffs_staging2
+WHERE total_laid_off IS NULL
+AND percentage_laid_off IS NULL;
+
+
+কাজ ৬ খালি industry → NULL বানাও
+
+খালি string '' এবং NULL আলাদা জিনিস MySQL-এ। JOIN দিয়ে পূরণ করতে হলে আগে খালি string-গুলোকে NULL বানিয়ে নিতে হবে।
+UPDATE layoffs_staging2
+SET industry = NULL
+WHERE industry = '';  -- '' মানে খালি string, NULL না
+
+
+কাজ ৭ একই কোম্পানির অন্য সারি থেকে industry পূরণ
+
+যেমন Airbnb-র একটি সারিতে industry নেই, কিন্তু Airbnb-র আরেকটি সারিতে 'Travel' আছে। Self JOIN করে সেই তথ্য নিয়ে পূরণ করা হচ্ছে।
+-- আগে দেখো — কোন কোম্পানির industry পাওয়া যাবে
+SELECT t1.industry, t2.industry
+FROM layoffs_staging2 t1
+JOIN layoffs_staging2 t2
+    ON t1.company = t2.company   -- একই কোম্পানি
+WHERE (t1.industry IS NULL OR t1.industry = '')
+AND t2.industry IS NOT NULL;
+
+-- এখন NULL পূরণ করো
+UPDATE layoffs_staging2 t1
+JOIN layoffs_staging2 t2
+ON t1.company = t2.company
+SET t1.industry = t2.industry    -- t2 থেকে নিয়ে t1-এ দাও
+WHERE t1.industry IS NULL
+AND t2.industry IS NOT NULL;
+
+Airbnb এভাবে পূরণ হবে, কিন্তু Bally's-এর মতো একটিমাত্র সারি থাকলে পূরণ হবে না — কারণ দেওয়ার মতো দ্বিতীয় কোনো সারি নেই।
+
+
+
+
+
+কাজ ৮ অকেজো সারি মুছে ফেলা
+
+দুটো মূল কলামই NULL মানে ওই সারির কোনো মূল্য নেই বিশ্লেষণে। নিরাপদে মুছে ফেলা যায়।
+-- চূড়ান্ত DELETE — দুটোই NULL হলে মুছো
+DELETE FROM layoffs_staging2
+WHERE total_laid_off IS NULL
+AND percentage_laid_off IS NULL;
+
+SELECT * FROM layoffs_staging2; -- পরিষ্কার ডেটা দেখো
+
+সর্বশেষ row_num কলাম সরানো
+
+ডুপ্লিকেট খোঁজার জন্য যোগ করা row_num কলামটি এখন আর দরকার নেই। ALTER TABLE ... DROP COLUMN দিয়ে সরিয়ে দেওয়া হচ্ছে।
+ALTER TABLE layoffs_staging2
+DROP COLUMN row_num;
+
+
+
+
+অংশ ১ — ডুপ্লিকেট সরানো: মূল টেবিলের কপি বানিয়ে ROW_NUMBER() দিয়ে বাড়তি সারি খুঁজে মুছে ফেলা।
+অংশ ২ — ডেটা পরিষ্কার: company-র space, industry-র বানান, country-র ডট, আর তারিখের ফরম্যাট ঠিক করা।
+অংশ ৩ — NULL ঠিক করা: খালি industry পূরণ করা, একদম অকেজো সারি মুছে ফেলা, আর শেষে কাজের কলাম সরিয়ে টেবিল পরিষ্কার করা।
+এই পুরো প্রক্রিয়াটাকে বলে Data Cleaning — বিশ্লেষণ শুরুর আগে ডেটাকে বিশ্বাসযোগ্য ও ব্যবহারযোগ্য করে তোলা।
