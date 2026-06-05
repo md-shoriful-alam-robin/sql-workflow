@@ -1,0 +1,152 @@
+অংশ ১ — CASE Statement
+
+কোড ১ বয়স দেখে লেবেল দেওয়া
+
+CASE হলো SQL-এর "যদি-তাহলে" — একটা কলামের মান দেখে ভিন্ন ভিন্ন ফলাফল দেয়। এখানে বয়স দেখে প্রতিটি কর্মীকে একটি বয়স-শ্রেণী দেওয়া হচ্ছে।
+SELECT first_name, last_name, age,
+  CASE 
+    WHEN age <= 30            THEN 'Young'
+    WHEN age BETWEEN 31 AND 50 THEN 'Old'
+    WHEN age >= 50            THEN "On Death's Door"
+  END AS Age_Bracket        -- নতুন কলামের নাম
+FROM employee_demographics;
+
+WHEN ... THEN
+
+শর্ত পূরণ হলে কী দেখাবে তা বলে দেওয়া। উপর থেকে একে একে মেলানো হয়।
+
+END AS নাম
+
+CASE শেষ করা হয় END দিয়ে। AS দিয়ে নতুন কলামের নাম দেওয়া হয়।
+
+
+কোড ২ — ভুল কোড অসম্পূর্ণ CASE (শেখার জন্য)
+
+এই কোডে দুটো ভুল আছে — ইচ্ছাকৃতভাবে দেখানো হয়েছে কী করলে error আসে।
+SELECT first_name, last_name, Salary,
+  CASE 
+    WHEN salary < 50000 THEN salary + (salary * 0.05)
+    -- WHEN salary > 50000 নেই, ELSE নেই → বাকিরা NULL পাবে
+  END AS New_Salary;   -- ← ভুল: এখানে ; দেওয়া যাবে না
+FROM employee_salary;  -- ← FROM আলাদা লাইনে, ; দেওয়ায় error
+ভুল ১: END AS New_Salary; — মাঝে semicolon দেওয়া যাবে না, কারণ কোয়েরি এখনো শেষ হয়নি।
+ভুল ২: salary > 50000-এর জন্য কোনো WHEN নেই।
+
+
+কোড ৩ বেতন বৃদ্ধি + বোনাস হিসাব
+
+দুটো আলাদা CASE একসাথে ব্যবহার করা হচ্ছে। একটি নতুন বেতন বের করছে, আরেকটি বোনাস বের করছে। dept_id = 6 মানে Finance বিভাগ।
+SELECT first_name, last_name, salary,
+
+  -- ১ম CASE: নতুন বেতন
+  CASE 
+    WHEN salary < 50000 THEN salary * 1.05   -- 5% বৃদ্ধি
+    WHEN salary > 50000 THEN salary * 1.07   -- 7% বৃদ্ধি
+    ELSE salary                               -- ঠিক 50000 হলে অপরিবর্তিত
+  END AS New_Salary,
+
+  -- ২য় CASE: বোনাস (শুধু Finance এর জন্য)
+  CASE 
+    WHEN dept_id = 6 THEN salary * 0.10      -- 10% বোনাস
+    ELSE NULL                                 -- বাকিদের বোনাস নেই
+  END AS Bonus
+
+FROM employee_salary;
+
+একটি SELECT-এ যতগুলো CASE দরকার ততগুলো লেখা যায়, শুধু কমা (,) দিয়ে আলাদা করতে হবে।
+
+
+অংশ ২ — Subquery (কোয়েরির ভেতরে কোয়েরি)
+
+কোড ৪ WHERE-এর ভেতরে Subquery (IN)
+
+বাইরের কোয়েরি জিজ্ঞেস করছে: "কোন কর্মীর id-গুলো employee_salary-তে dept_id=1 এ আছে?" ভেতরের কোয়েরি সেই id-গুলো বের করে দেয়, তারপর বাইরেরটা সেগুলো দিয়ে ফিল্টার করে।
+SELECT *
+FROM employee_demographics
+WHERE employee_id IN (
+    -- ভেতরের subquery: dept 1-এর কর্মীর id বের করো
+    SELECT employee_id
+    FROM employee_salary
+    WHERE dept_id = 1
+);
+
+IN (...) মানে: "এই তালিকার যেকোনো মানের সাথে মিললেই দেখাও।"
+
+
+
+কোড ৫ SELECT-এর ভেতরে Subquery (একটি মান)
+
+প্রতিটি কর্মীর পাশে সব কর্মীর গড় বেতন দেখানো হচ্ছে। SELECT-এর ভেতরে subquery একটিমাত্র মান (single value) ফেরত দেয়, তাই প্রতিটি সারিতে একই গড় দেখায়।
+SELECT first_name, salary,
+  (SELECT AVG(salary) FROM employee_salary) AS avg_salary
+  -- ↑ এটি একটি মান, প্রতিটি সারিতে একই দেখাবে
+FROM employee_salary
+GROUP BY first_name, salary;
+
+SELECT-এর ভেতরের subquery সবসময় একটিমাত্র মান (scalar) ফেরত দিতে হবে — একাধিক সারি ফেরত দিলে error আসবে।
+
+
+
+কোড ৬ FROM-এর ভেতরে Subquery (অস্থায়ী টেবিল)
+
+ভেতরের subquery একটি অস্থায়ী টেবিল বানায় যেখানে লিঙ্গভিত্তিক গড়, সর্বোচ্চ, সর্বনিম্ন বয়স আছে। বাইরের কোয়েরি সেই টেবিল থেকে গড় বয়সের গড় বের করছে।
+SELECT gender, AVG(max_age) AS avg_of_max_age
+FROM (
+    -- ভেতরের subquery: অস্থায়ী টেবিল বানাও
+    SELECT gender,
+           AVG(age) AS avg_age,
+           MAX(age) AS max_age,   -- ← বাইরে এটাই ব্যবহার হচ্ছে
+           MIN(age) AS min_age,
+           COUNT(age) AS count_age
+    FROM employee_demographics
+    GROUP BY gender
+) AS Agg_table                    -- ← অস্থায়ী টেবিলকে নাম দিতেই হবে
+GROUP BY gender;
+
+FROM (...) AS নাম
+
+FROM-এর ভেতরে subquery লিখলে অবশ্যই একটি alias নাম দিতে হবে — না হলে error আসবে।
+
+CTE বনাম Subquery
+
+এই কাজটাই WITH দিয়ে CTE লিখলে পড়তে সহজ হয়। দুটো একই ফলাফল দেয়।
+
+
+মনে রাখার নিয়ম
+
+CASE — শর্ত দেখে ভিন্ন মান দেওয়া। WHEN → THEN → ELSE → END
+ELSE — কোনো শর্ত না মিললে কী হবে। না লিখলে NULL আসবে
+WHERE-এ subquery — তালিকা বানায়, IN দিয়ে ফিল্টার করে
+SELECT-এ subquery — একটিমাত্র মান ফেরত দিতে হবে
+FROM-এ subquery — অস্থায়ী টেবিল, অবশ্যই alias দিতে হবে 
+
+
+
+-- ============================================
+-- CASE STATEMENT — শর্তভিত্তিক মান দেওয়া
+-- ============================================
+-- গঠন:
+--   CASE
+--     WHEN শর্ত THEN ফলাফল
+--     WHEN শর্ত THEN ফলাফল
+--     ELSE ডিফল্ট_ফলাফল   ← না লিখলে NULL আসে
+--   END AS কলামের_নাম
+--
+-- একটি SELECT-এ একাধিক CASE লেখা যায় (কমা দিয়ে)
+-- ============================================
+
+-- ============================================
+-- SUBQUERY — কোয়েরির ভেতরে কোয়েরি
+-- ============================================
+-- তিন জায়গায় ব্যবহার হয়:
+--
+--   WHERE employee_id IN (SELECT ...)
+--     → তালিকা বানায়, IN দিয়ে ফিল্টার করে
+--
+--   SELECT (SELECT AVG(...)) AS গড়
+--     → একটিমাত্র মান ফেরত দেয়, সব সারিতে দেখায়
+--
+--   FROM (SELECT ...) AS অস্থায়ী_নাম
+--     → অস্থায়ী টেবিল বানায়, alias আবশ্যক
+--     → CTE (WITH) দিয়ে লিখলে আরও পরিষ্কার হয়
+-- ============================================
