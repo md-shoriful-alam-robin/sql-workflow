@@ -1,0 +1,710 @@
+# SQL Layoffs Analysis Guide - সম্পূর্ণ গাইড
+
+## Overview
+এই গাইডটি layoffs_staging2 টেবিল থেকে data analysis করার জন্য সব SQL queries এর বিস্তারিত ব্যাখ্যা দেয়।
+
+---
+
+## Query 1: Maximum Values চেক করা
+```sql
+SELECT MAX(total_laid_off), MAX(percentage_laid_off)
+FROM layoffs_staging2;
+```
+
+**কি করে?**
+- সবচেয়ে বড় single layoff event (total_laid_off) খুঁজে বের করে
+- সর্বোচ্চ percentage layoff খুঁজে বের করে
+- যেমন: 100% layoff করেছে এমন কোম্পানি এবং একবারে সবচেয়ে বেশি কত জন layoff হয়েছে
+
+**কেন প্রয়োজন?**
+- Data cleaning এর সময় outliers detect করতে
+- Extreme cases identify করতে (যেমন সম্পূর্ণ শাটডাউন)
+
+---
+
+## Query 2: সম্পূর্ণ Layoff (100%) এর কোম্পানি গুলো
+```sql
+SELECT *
+FROM layoffs_staging2
+WHERE percentage_laid_off = 1
+ORDER BY total_laid_off DESC;
+```
+
+**কি করে?**
+- যেসব কোম্পানি ১০০% কর্মী layoff করেছে সেগুলো দেখায়
+- সবচেয়ে বেশি কর্মীচ্ছেদ করা কোম্পানি থেকে শুরু করে sort করা
+
+**কেন প্রয়োজন?**
+- সবচেয়ে severe cases দেখতে
+- Company shutdowns identify করতে
+
+---
+
+## Query 3: কোম্পানি অনুযায়ী মোট Layoff
+```sql
+SELECT company, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+```
+
+**কি করে?**
+- প্রতিটি কোম্পানি কত জন মানুষ layoff করেছে সেটা যোগ করে
+- সবচেয়ে বেশি হেড কাটা কোম্পানি থেকে শুরু করে sorting
+
+**আউটপুট উদাহরণ:**
+```
+Meta        21090 (সবচেয়ে বেশি)
+Amazon      18150
+Google      12000
+...
+```
+
+---
+
+## Query 4: ডাটাবেসে কি date range আছে?
+```sql
+SELECT MIN(`date`), MAX(`date`)
+FROM layoffs_staging2;
+```
+
+**কি করে?**
+- প্রথম এবং শেষ layoff event এর dates খুঁজে বের করে
+- আমাদের dataset এর timespan জানায়
+
+**কেন প্রয়োজন?**
+- Time-series analysis এর আগে data range বুঝতে
+
+---
+
+## Query 5: দেশ অনুযায়ী মোট Layoff
+```sql
+SELECT country, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY country
+ORDER BY 2 DESC;
+```
+
+**কি করে?**
+- প্রতিটি দেশে কত জন মানুষ layoff হয়েছে
+- সবচেয়ে বেশি প্রভাবিত দেশ identify করে
+
+**আউটপুট:**
+```
+United States   388008
+India           21092
+Germany         12345
+...
+```
+
+---
+
+## Query 6: সম্পূর্ণ ডাটা দেখা
+```sql
+SELECT *
+FROM layoffs_staging2;
+```
+
+**কি করে?**
+- সব rows এবং columns দেখায়
+- Quick verification এর জন্য
+
+---
+
+## Query 7: তারিখ অনুযায়ী মোট Layoff (সবচেয়ে বড় দিন কোনটি?)
+```sql
+SELECT `date`, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY `date`
+ORDER BY 2 DESC;
+```
+
+**কি করে?**
+- কোন দিনে সবচেয়ে বেশি layoff ঘটেছে
+- Peak layoff days identify করে
+
+---
+
+## Query 8: বছর অনুযায়ী মোট Layoff (বছরের trend)
+```sql
+SELECT YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY YEAR(`date`)
+ORDER BY 2 DESC;
+```
+
+**কি করে?**
+- প্রতিটি বছর কত layoff হয়েছে দেখায়
+- Trend analysis করতে সাহায্য করে
+
+**আউটপুট উদাহরণ:**
+```
+2023  262534 (সবচেয়ে খারাপ বছর)
+2022  160661
+2021   15627
+...
+```
+
+---
+
+## Query 9: কোম্পানির Stage (Startup/Public) অনুযায়ী Layoff
+```sql
+SELECT stage, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY stage
+ORDER BY 2 DESC;
+```
+
+**কি করে?**
+- কোন ধরনের কোম্পানি সবচেয়ে বেশি layoff করেছে
+  - Post-IPO
+  - Series C/D funding
+  - Startup
+  - Public companies
+  - etc.
+
+---
+
+## Query 10: কোম্পানি দ্বারা Percentage Layoff এর মোট
+```sql
+SELECT company, SUM(percentage_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+```
+
+**কি করে?**
+- প্রতিটি কোম্পানির সব layoff events এর percentages যোগ করে
+- ⚠️ এটা misleading হতে পারে (যেমন 1 + 0.8 + 0.2 = 2.0)
+
+**সতর্কতা:**
+- যদি কোম্পানি দুইবার layoff করেছে 50% করে, তাহলে এই query দেখাবে 100%
+- দেখে বুঝতে হবে কোম্পানি একবার ১০০% করেছে নাকি একাধিকবার
+
+---
+
+## Query 11: কোম্পানি দ্বারা গড় Percentage Layoff
+```sql
+SELECT company, avg(percentage_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+```
+
+**কি করে?**
+- প্রতিটি কোম্পানির সব layoff events এর **গড় percentage**
+- নরমালাইজড data যা ভালোভাবে তুলনা করতে দেয়
+
+**পার্থক্য:**
+- Query 10 = সব percentages যোগ করা
+- Query 11 = গড় percentage (বেশি meaningful)
+
+---
+
+## Query 12: মাসিক Layoff Trend (Running Total এর জন্য CTE)
+```sql
+SELECT SUBSTRING(`date`,1,7) AS `MONTH`, SUM(total_laid_off)
+FROM layoffs_staging2
+WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+GROUP BY `MONTH`
+ORDER BY 1 ASC;
+```
+
+**কি করে?**
+- Date থেকে শুধু YYYY-MM part নিয়ে মাস অনুযায়ী group করা
+- `SUBSTRING(`date`,1,7)` = প্রথম 7 characters নেয় ("2020-01")
+- এই month গুলোতে কত মানুষ layoff হয়েছে
+
+**আউটপুট:**
+```
+2020-01  4502
+2020-02  3215
+2020-03  5814
+...
+```
+
+---
+
+## Query 13: Rolling Total করা (অত্যন্ত গুরুত্বপূর্ণ!)
+```sql
+WITH Rolling_Total AS
+(
+    SELECT 
+        SUBSTRING(`date`,1,7) AS `MONTH`, 
+        SUM(total_laid_off) AS total_off
+    FROM layoffs_staging2
+    WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+    GROUP BY `MONTH`
+    ORDER BY 1 ASC
+)
+SELECT 
+    `MONTH`, 
+    total_off,
+    SUM(total_off) OVER(ORDER BY `MONTH`) AS rolling_total
+FROM Rolling_Total;
+```
+
+**কি করে?**
+
+1. **CTE (Common Table Expression)** তৈরি করে মাসিক মোট
+2. **Window Function** ব্যবহার করে cumulative sum (running total)
+3. `SUM(total_off) OVER(ORDER BY `MONTH`)` = প্রথম মাস থেকে সেই মাস পর্যন্ত সব যোগ
+
+**আউটপুট উদাহরণ:**
+```
+MONTH    total_off   rolling_total
+2020-01   4502        4502
+2020-02   3215        7717
+2020-03   5814        13531
+...
+```
+
+**কেন এটা গুরুত্বপূর্ণ?**
+- Cumulative impact দেখায়
+- Timeline এ layoff ক্রমবৃদ্ধি track করে
+
+---
+
+## Query 14: কোম্পানি অনুযায়ী মোট Layoff (আবার)
+```sql
+SELECT company, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+```
+
+**এটা Query 3 এর সমান**
+
+---
+
+## Query 15: কোম্পানি এবং বছর অনুযায়ী Layoff
+```sql
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+ORDER BY company ASC;
+```
+
+**কি করে?**
+- প্রতিটি কোম্পানির প্রতিটি বছর কত layoff হয়েছে দেখায়
+- কোম্পানি নাম অনুযায়ী alphabetical sorting
+
+**আউটপুট:**
+```
+Acme Inc  2021  5000
+Acme Inc  2022  3000
+Acme Inc  2023  2000
+Amazon    2021  1500
+...
+```
+
+---
+
+## Query 16: কোম্পানি এবং বছর অনুযায়ী Layoff (মোট অনুযায়ী sorting)
+```sql
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+ORDER BY 3 DESC;
+```
+
+**Query 15 এর সমান, কিন্তু:**
+- সবচেয়ে বড় layoff events প্রথম দেখা যায়
+
+---
+
+## Query 17: প্রতি বছর Top 5 কোম্পানি (Advanced Window Function)
+
+```sql
+WITH Company_Year(company, years, total_laid_off) AS
+(
+    SELECT 
+        company, 
+        YEAR(`date`) AS years, 
+        SUM(total_laid_off) AS total_laid_off
+    FROM layoffs_staging2
+    GROUP BY company, YEAR(`date`)
+), Company_Year_Rank AS
+(SELECT *,
+    company,
+    years,
+    total_laid_off,
+    DENSE_RANK() OVER (PARTITION BY years ORDER BY total_laid_off DESC) AS Ranking
+FROM Company_Year
+WHERE years IS NOT NULL
+)
+SELECT *
+FROM Company_Year_Rank
+WHERE Ranking <= 5;
+```
+
+**এটা সবচেয়ে advanced query!**
+
+### Step-by-step ব্যাখ্যা:
+
+**Step 1: প্রথম CTE - Company_Year**
+```sql
+WITH Company_Year(company, years, total_laid_off) AS
+(
+    SELECT company, YEAR(`date`), SUM(total_laid_off)
+    FROM layoffs_staging2
+    GROUP BY company, YEAR(`date`)
+)
+```
+- প্রতিটি কোম্পানি-বছর জোড়ার মোট layoff calculate করা
+- এটা temporary table এর মতো
+
+**Step 2: দ্বিতীয় CTE - Company_Year_Rank (Window Function)**
+```sql
+Company_Year_Rank AS
+(SELECT *,
+    DENSE_RANK() OVER (PARTITION BY years ORDER BY total_laid_off DESC) AS Ranking
+FROM Company_Year
+)
+```
+
+**Window Function ব্যাখ্যা:**
+```
+DENSE_RANK() OVER (PARTITION BY years ORDER BY total_laid_off DESC)
+│            │    │             │                       │
+│            │    │             └─ প্রতিটি বছরের জন্য আলাদা ranking
+│            └────┴─ "Window" - calculation করার scope
+└──────────────────── Ranking function (1, 2, 3... যদি tie থাকে 1, 2, 2, 3)
+```
+
+**কি করে এই window function?**
+- প্রতিটি বছরকে separate group বানায় (PARTITION BY years)
+- প্রতিটি group এর মধ্যে ranking দেয় সবচেয়ে বড় layoff এর উপর ভিত্তি করে
+- DENSE_RANK দেয় কারণ ties থাকতে পারে
+
+**Step 3: Final SELECT**
+```sql
+SELECT * FROM Company_Year_Rank WHERE Ranking <= 5;
+```
+- শুধু top 5 কোম্পানি প্রতিটি বছরের জন্য
+
+**আউটপুট উদাহরণ:**
+```
+company         years  total_laid_off  Ranking
+Meta            2023   21090          1
+Amazon          2023   18150          2
+Google          2023   12000          3
+Twitter         2023   11000          4
+Stripe          2023   9000           5
+Acme Inc        2023   8500           6  (filtered out)
+...
+Apple           2022   14000          1
+Microsoft       2022   10000          2
+...
+```
+
+---
+
+## Window Functions - গুরুত্বপূর্ণ Concepts
+
+### কি?
+Window functions হল SQL এর advanced feature যা:
+- Group BY ছাড়াই aggregate functions ব্যবহার করতে পারে
+- আগের/পরের rows এর সাথে comparison করতে পারে
+- Ranking, running totals, moving averages করতে পারে
+
+### সাধারণ Window Functions:
+```sql
+ROW_NUMBER()      -- 1, 2, 3, 4 (ties ignore)
+RANK()            -- 1, 2, 2, 4 (ties give same rank)
+DENSE_RANK()      -- 1, 2, 2, 3 (ties give same rank, no gaps)
+SUM() OVER()      -- Running total / cumulative sum
+AVG() OVER()      -- Running average
+LAG()             -- Previous row এর value
+LEAD()            -- Next row এর value
+```
+
+### PARTITION BY vs GROUP BY
+
+| Feature | PARTITION BY | GROUP BY |
+|---------|--------------|----------|
+| Output rows | Same as input | Grouped rows only |
+| Detail level | Row-level | Group-level |
+| Other columns | Can select any | Must GROUP BY or aggregate |
+| Use case | Ranking, running totals | Aggregation |
+
+---
+
+## MySQL Window Functions Syntax
+
+```sql
+function_name() OVER (
+    PARTITION BY column1, column2
+    ORDER BY column3 ASC
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+)
+```
+
+**Parts:**
+- `PARTITION BY` = কাকে group করবে (optional)
+- `ORDER BY` = কোন order এ (required for ranking/running totals)
+- `ROWS BETWEEN` = কোন rows include করবে (optional, default UNBOUNDED PRECEDING)
+
+**Common ROWS specifications:**
+```sql
+ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+-- সব আগের + বর্তমান = cumulative/running
+
+ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING
+-- গত 2 rows + বর্তমান + পরের 2 rows = moving average
+
+ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+-- সব rows = full sum
+```
+
+---
+
+## Best Practices
+
+### 1. NULL Handling
+```sql
+-- সবসময় NULL check করো
+WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+-- অথবা
+WHERE `date` IS NOT NULL
+```
+
+### 2. CTE ব্যবহার করো Complex queries এর জন্য
+```sql
+WITH step1 AS (...),
+     step2 AS (...),
+     step3 AS (...)
+SELECT * FROM step3;
+```
+
+### 3. ORDER BY clause ব্যবহার করো window functions এর সাথে
+```sql
+DENSE_RANK() OVER (PARTITION BY years ORDER BY total_laid_off DESC)
+-- ORDER BY ছাড়া, ranking meaningless
+```
+
+### 4. Aliases ব্যবহার করো পরিষ্কারতার জন্য
+```sql
+SELECT 
+    company,
+    YEAR(`date`) AS year,
+    SUM(total_laid_off) AS total_layoffs
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`);
+```
+
+---
+
+## Common Mistakes এবং Solutions
+
+### ❌ Mistake 1: PARTITION BY ছাড়া Window Function
+```sql
+-- WRONG
+SELECT company, SUM(total_laid_off) OVER (ORDER BY company)
+FROM layoffs_staging2;
+-- আউটপুট: প্রতিটি row duplicate window calculation
+
+-- CORRECT
+SELECT company, SUM(total_laid_off) OVER (PARTITION BY company ORDER BY company)
+FROM layoffs_staging2;
+```
+
+### ❌ Mistake 2: Non-aggregated columns GROUP BY ছাড়া
+```sql
+-- WRONG
+SELECT company, country, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company;
+-- Error! country grouped নয়
+
+-- CORRECT
+SELECT company, country, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, country;
+```
+
+### ❌ Mistake 3: ORDER BY সংখ্যা
+```sql
+-- কাজ করে কিন্তু fragile
+SELECT company, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+
+-- আরো ভালো
+SELECT company, SUM(total_laid_off) AS total
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY total DESC;
+```
+
+---
+
+## Performance Tips
+
+### 1. বড় datasets এর জন্য INDEX ব্যবহার করো
+```sql
+CREATE INDEX idx_company ON layoffs_staging2(company);
+CREATE INDEX idx_date ON layoffs_staging2(DATE);
+CREATE INDEX idx_country ON layoffs_staging2(country);
+```
+
+### 2. EXPLAIN query optimizer এর জন্য
+```sql
+EXPLAIN SELECT company, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company;
+-- Query কেমন execute হচ্ছে দেখায়
+```
+
+### 3. WHERE clause GROUP BY আগে use করো
+```sql
+-- GOOD: Filter করা data group করা
+SELECT company, SUM(total_laid_off)
+FROM layoffs_staging2
+WHERE YEAR(date) = 2023
+GROUP BY company;
+
+-- BAD: সব data group করে পরে filter
+SELECT company, SUM(total_laid_off) AS total
+FROM layoffs_staging2
+GROUP BY company
+HAVING SUM(total_laid_off) > 10000;
+-- (HAVING কাজ করে কিন্তু less efficient)
+```
+
+---
+
+## Next Steps (শেখার জন্য)
+
+1. **এই queries নিজে run করো** আপনার database এ
+2. **Results analyze করো** - patterns খুঁজে বের করো
+3. **Variations create করো** - নতুন insights খুঁজো
+4. **Window functions practice করো** - ROW_NUMBER, RANK, LAG, LEAD
+5. **Joins শিখো** - একাধিক tables এর সাথে analysis
+
+---
+
+## Additional Resources
+
+- MySQL Window Functions: https://dev.mysql.com/doc/refman/8.0/en/window-functions.html
+- CTEs (Common Table Expressions): https://dev.mysql.com/doc/refman/8.0/en/with.html
+- SQL Best Practices: Query optimization, indexing, etc.
+
+---
+
+SELECT MAX(total_laid_off), MAX(percentage_laid_off)
+FROM layoffs_staging2;
+
+
+SELECT *
+FROM layoffs_staging2
+WHERE percentage_laid_off = 1
+ORDER BY total_laid_off DESC;
+
+SELECT company, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+
+SELECT MIN(`date`), MAX(`date`)
+FROM layoffs_staging2;
+
+SELECT country, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY country
+ORDER BY 2 DESC;
+
+SELECT *
+FROM layoffs_staging2;
+
+SELECT `date`, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY `date`
+ORDER BY 2 DESC;
+
+
+SELECT YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY YEAR(`date`)
+ORDER BY 2 DESC;
+
+SELECT stage, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY stage
+ORDER BY 2 DESC;
+
+
+SELECT company, SUM(percentage_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+
+SELECT company, avg(percentage_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+
+
+SELECT SUBSTRING(`date`,1,7) AS `MONTH`, SUM(total_laid_off)
+FROM layoffs_staging2
+WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+GROUP BY `MONTH`
+ORDER BY 1 ASC;
+
+WITH Rolling_Total AS
+(
+    SELECT 
+        SUBSTRING(`date`,1,7) AS `MONTH`, 
+        SUM(total_laid_off) AS total_off
+    FROM layoffs_staging2
+    WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+    GROUP BY `MONTH`
+    ORDER BY 1 ASC
+)
+SELECT 
+    `MONTH`, 
+    total_off,
+    SUM(total_off) OVER(ORDER BY `MONTH`) AS rolling_total
+FROM Rolling_Total;
+
+
+SELECT company, SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company
+ORDER BY 2 DESC;
+
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+ORDER BY company ASC;
+
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM layoffs_staging2
+GROUP BY company, YEAR(`date`)
+ORDER BY 3 DESC;
+
+WITH Company_Year(company, years, total_laid_off) AS
+(
+    SELECT 
+        company, 
+        YEAR(`date`) AS years, 
+        SUM(total_laid_off) AS total_laid_off
+    FROM layoffs_staging2
+    GROUP BY company, YEAR(`date`)
+), Company_Year_Rank AS
+(SELECT *,
+    company,
+    years,
+    total_laid_off,
+    DENSE_RANK() OVER (PARTITION BY years ORDER BY total_laid_off DESC) AS Ranking
+FROM Company_Year
+WHERE years IS NOT NULL
+)
+SELECT *
+FROM Company_Year_Rank
+WHERE Ranking <= 5
+;
+
+
+**Created:** June 2026 | **Language:** Bengali | **Database:** MySQL
